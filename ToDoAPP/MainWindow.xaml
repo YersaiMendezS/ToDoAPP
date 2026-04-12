@@ -11,13 +11,19 @@
             <Grid Margin="0,5">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0" Checked="TaskCompleted_Checked" Tag="{Binding}" />
-                <TextBlock Grid.Column="1" Text="{Binding}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="1" Text="{Binding TaskNumber, StringFormat='{}{0}.'}" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold" />
+                <Border Grid.Column="2" Background="{Binding PriorityColor}" Width="12" Height="12" CornerRadius="6" Margin="0,0,10,0" ToolTip="{Binding PriorityName}" />
+                <TextBlock Grid.Column="3" Text="{Binding Description}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                <TextBlock Grid.Column="4" Text="{Binding DueDate, StringFormat='{}{0:d}'}" VerticalAlignment="Center" Margin="10,0,10,0" FontStyle="Italic" Foreground="Gray" />
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="10,0,0,0">
                     <Button Click="EditTask_Click" Padding="5" ToolTip="Edit Task" Margin="0,0,5,0" Tag="{Binding}">
                         <TextBlock Text="✏️" FontFamily="Segoe UI Emoji" />
                     </Button>
@@ -32,13 +38,19 @@
             <Grid Margin="0,5">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <CheckBox Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0" IsChecked="True" Unchecked="TaskCompleted_Unchecked" Tag="{Binding}" />
-                <TextBlock Grid.Column="1" Text="{Binding}" VerticalAlignment="Center" TextWrapping="Wrap" TextDecorations="Strikethrough" Foreground="Gray" />
+                <TextBlock Grid.Column="1" Text="{Binding TaskNumber, StringFormat='{}{0}.'}" VerticalAlignment="Center" Margin="0,0,10,0" TextDecorations="Strikethrough" Foreground="Gray" />
+                <Border Grid.Column="2" Background="{Binding PriorityColor}" Width="12" Height="12" CornerRadius="6" Margin="0,0,10,0" ToolTip="{Binding PriorityName}" Opacity="0.5" />
+                <TextBlock Grid.Column="3" Text="{Binding Description}" VerticalAlignment="Center" TextWrapping="Wrap" TextDecorations="Strikethrough" Foreground="Gray" />
+                <TextBlock Grid.Column="4" Text="{Binding DueDate, StringFormat='{}{0:d}'}" VerticalAlignment="Center" Margin="10,0,10,0" FontStyle="Italic" TextDecorations="Strikethrough" Foreground="Gray" />
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
+                <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="10,0,0,0">
                     <Button Click="DeleteTask_Click" Padding="5" ToolTip="Delete Task" Tag="{Binding}">
                         <TextBlock Text="🗑️" FontFamily="Segoe UI Emoji" />
                     </Button>
@@ -59,28 +71,82 @@
 
             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
                 <Button Content="New Task" Width="100" Padding="5" Click="ShowTaskPopup_Click" />
+                <Button Content="Settings" Width="100" Margin="10,0,0,0" Padding="5" Click="ShowSettingsPopup_Click" />
             </StackPanel>
 
-            <ListBox x:Name="TaskListView" Grid.Row="1" FontSize="16" HorizontalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveTaskTemplate}" />
+            <ListBox x:Name="TaskListView" Grid.Row="1" FontSize="16" HorizontalContentAlignment="Stretch" ItemTemplate="{StaticResource ActiveTaskTemplate}" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}" />
 
-            <TextBlock Grid.Row="2" Text="Completed Tasks" FontSize="18" FontWeight="Bold" Margin="0,10,0,10" />
+            <TextBlock Grid.Row="2" Text="Completed Tasks" FontSize="18" FontWeight="Bold" Margin="0,10,0,10" Foreground="{DynamicResource TextBrush}" />
 
-            <ListBox x:Name="CompletedTaskListView" Grid.Row="3" FontSize="16" HorizontalContentAlignment="Stretch" ItemTemplate="{StaticResource CompletedTaskTemplate}" />
+            <ListBox x:Name="CompletedTaskListView" Grid.Row="3" FontSize="16" HorizontalContentAlignment="Stretch" ItemTemplate="{StaticResource CompletedTaskTemplate}" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}" />
         </Grid>
 
         <!-- Popup Overlay -->
         <Grid x:Name="TaskPopup" Visibility="Collapsed" Background="#80000000">
-            <Border Background="White" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20" CornerRadius="5" MinWidth="350">
+            <Border Background="{DynamicResource PopupBackgroundBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20" CornerRadius="5" MinWidth="350">
                 <StackPanel>
-                    <TextBlock x:Name="PopupTitle" Text="Create Task" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" />
+                    <TextBlock x:Name="PopupTitle" Text="Create Task" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="{DynamicResource TextBrush}" />
 
-                    <TextBlock Text="Task Description:" Margin="0,0,0,5" />
-                    <TextBox x:Name="TaskInput" Height="30" Margin="0,0,0,15" Padding="5" KeyDown="TaskInput_KeyDown" />
+                    <TextBlock Text="Task Description:" Margin="0,0,0,5" Foreground="{DynamicResource TextBrush}" />
+                    <TextBox x:Name="TaskInput" Height="30" Margin="0,0,0,15" Padding="5" KeyDown="TaskInput_KeyDown" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}" />
+
+                    <TextBlock Text="Due Date:" Margin="0,0,0,5" Foreground="{DynamicResource TextBrush}" />
+                    <DatePicker x:Name="TaskDatePicker" Margin="0,0,0,15" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}" />
+
+                    <TextBlock Text="Priority:" Margin="0,0,0,5" Foreground="{DynamicResource TextBrush}" />
+                    <Grid Margin="0,0,0,15">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="PriorityComboBox" Grid.Column="0" Height="30" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Background="{Binding Color}" Width="12" Height="12" CornerRadius="6" Margin="0,0,5,0" />
+                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextBrush}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Grid.Column="1" Content="New..." Padding="5,0" Margin="10,0,0,0" Height="30" Click="AddPriority_Click" />
+                    </Grid>
+
+                    <StackPanel x:Name="NewPriorityPanel" Visibility="Collapsed" Margin="0,0,0,15">
+                        <TextBlock Text="New Priority Name:" Margin="0,0,0,5" Foreground="{DynamicResource TextBrush}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NewPriorityInput" Height="30" Padding="5" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}" />
+                            <Button Grid.Column="1" Content="Add" Width="50" Margin="10,0,0,0" Click="SaveNewPriority_Click" />
+                        </Grid>
+                    </StackPanel>
 
                     <!-- Action Buttons -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                         <Button Content="Cancel" Width="80" Margin="0,0,10,0" Padding="5" Click="CloseTaskPopup_Click" />
                         <Button x:Name="AddButton" Content="Save Task" Width="80" Padding="5" Click="AddTask_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Settings Popup Overlay -->
+        <Grid x:Name="SettingsPopup" Visibility="Collapsed" Background="#80000000">
+            <Border Background="{DynamicResource PopupBackgroundBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="20" CornerRadius="5" MinWidth="250">
+                <StackPanel>
+                    <TextBlock Text="Settings" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="{DynamicResource TextBrush}" />
+
+                    <TextBlock Text="Theme:" Margin="0,0,0,5" Foreground="{DynamicResource TextBrush}" />
+                    <ComboBox x:Name="ThemeComboBox" Margin="0,0,0,20" Height="30" SelectionChanged="ThemeComboBox_SelectionChanged" Background="{DynamicResource ControlBackgroundBrush}" Foreground="{DynamicResource TextBrush}">
+                        <ComboBoxItem Content="Light" Foreground="{DynamicResource TextBrush}" />
+                        <ComboBoxItem Content="Dark" Foreground="{DynamicResource TextBrush}" />
+                    </ComboBox>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="Close" Width="80" Padding="5" Click="CloseSettingsPopup_Click" />
                     </StackPanel>
                 </StackPanel>
             </Border>
