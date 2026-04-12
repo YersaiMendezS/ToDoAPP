@@ -78,6 +78,21 @@ namespace ToDoAPP
             }
         }
 
+        private void ShowTaskPopup_Click(object sender, RoutedEventArgs e)
+        {
+            _editingIndex = -1;
+            PopupTitle.Text = "Create Task";
+            AddButton.Content = "Save Task";
+            TaskInput.Clear();
+            TaskPopup.Visibility = Visibility.Visible;
+            TaskInput.Focus();
+        }
+
+        private void CloseTaskPopup_Click(object sender, RoutedEventArgs e)
+        {
+            TaskPopup.Visibility = Visibility.Collapsed;
+        }
+
         private void TaskInput_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -99,7 +114,6 @@ namespace ToDoAPP
                     // Update existing task
                     TaskListView.Items[_editingIndex] = newTask;
                     _editingIndex = -1;
-                    AddButton.Content = "+";
                 }
                 else
                 {
@@ -109,6 +123,7 @@ namespace ToDoAPP
 
                 // 4. Clear the text box so they can type a new task
                 TaskInput.Clear();
+                TaskPopup.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -123,7 +138,10 @@ namespace ToDoAPP
                 if (_editingIndex >= 0)
                 {
                     TaskInput.Text = task;
+                    PopupTitle.Text = "Edit Task";
                     AddButton.Content = "Update Task";
+                    TaskPopup.Visibility = Visibility.Visible;
+                    TaskInput.Focus();
                 }
             }
         }
