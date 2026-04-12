@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace ToDoAPP
 {
@@ -16,6 +17,14 @@ namespace ToDoAPP
             InitializeComponent();
         }
 
+        private void TaskInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                AddTask_Click(sender, e);
+            }
+        }
+
         private void AddTask_Click(object sender, RoutedEventArgs e)
         {
             // 1. Get the text the user typed
@@ -29,7 +38,7 @@ namespace ToDoAPP
                     // Update existing task
                     TaskListView.Items[_editingIndex] = newTask;
                     _editingIndex = -1;
-                    AddButton.Content = "Add Task";
+                    AddButton.Content = "+";
                 }
                 else
                 {
@@ -54,6 +63,74 @@ namespace ToDoAPP
                 {
                     TaskInput.Text = task;
                     AddButton.Content = "Update Task";
+                }
+            }
+        }
+
+        private void DeleteTask_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button button && button.Tag is string task)
+            {
+                int index = TaskListView.Items.IndexOf(task);
+                if (index >= 0)
+                {
+                    TaskListView.Items.RemoveAt(index);
+
+                    if (_editingIndex == index)
+                    {
+                        _editingIndex = -1;
+                        TaskInput.Clear();
+                        AddButton.Content = "Add Task";
+                    }
+                    else if (_editingIndex > index)
+                    {
+                        _editingIndex--;
+                    }
+                }
+                else
+                {
+                    int completedIndex = CompletedTaskListView.Items.IndexOf(task);
+                    if (completedIndex >= 0)
+                    {
+                        CompletedTaskListView.Items.RemoveAt(completedIndex);
+                    }
+                }
+            }
+        }
+
+        private void TaskCompleted_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.Tag is string task)
+            {
+                int index = TaskListView.Items.IndexOf(task);
+                if (index >= 0)
+                {
+                    TaskListView.Items.RemoveAt(index);
+                    CompletedTaskListView.Items.Add(task);
+
+                    if (_editingIndex == index)
+                    {
+                        _editingIndex = -1;
+                        TaskInput.Clear();
+                        AddButton.Content = "Add Task";
+                    }
+                    else if (_editingIndex > index)
+                    {
+                        _editingIndex--;
+                    }
+                }
+            }
+        }
+
+        private void TaskCompleted_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.Tag is string task)
+            {
+                int index = CompletedTaskListView.Items.IndexOf(task);
+                if (index >= 0)
+                {
+                    CompletedTaskListView.Items.RemoveAt(index);
+                    TaskListView.Items.Add(task);
                 }
             }
         }
