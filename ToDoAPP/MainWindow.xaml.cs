@@ -1,7 +1,8 @@
-﻿using System.Text;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.IO;
+using System.Text.Json;
 
 namespace ToDoAPP
 {
@@ -15,6 +16,66 @@ namespace ToDoAPP
         public MainWindow()
         {
             InitializeComponent();
+            LoadTasks();
+        }
+
+        private const string SaveFilePath = "tasks.json";
+
+        public class TodoData
+        {
+            public List<string> ActiveTasks { get; set; } = new();
+            public List<string> CompletedTasks { get; set; } = new();
+        }
+
+        private void LoadTasks()
+        {
+            try
+            {
+                if (File.Exists(SaveFilePath))
+                {
+                    string json = File.ReadAllText(SaveFilePath);
+                    var data = JsonSerializer.Deserialize<TodoData>(json);
+
+                    if (data != null)
+                    {
+                        foreach (var task in data.ActiveTasks)
+                            TaskListView.Items.Add(task);
+
+                        foreach (var task in data.CompletedTasks)
+                            CompletedTaskListView.Items.Add(task);
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore load errors
+            }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+            SaveTasks();
+        }
+
+        private void SaveTasks()
+        {
+            try
+            {
+                var data = new TodoData();
+                foreach (string item in TaskListView.Items)
+                    data.ActiveTasks.Add(item);
+
+                foreach (string item in CompletedTaskListView.Items)
+                    data.CompletedTasks.Add(item);
+
+                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(SaveFilePath, json);
+            }
+            catch
+            {
+                // Ignore save errors
+            }
         }
 
         private void TaskInput_KeyDown(object sender, KeyEventArgs e)
