@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.IO;
 using System.Text.Json;
 using System.Linq;
+using System.ComponentModel;
 using ToDoAPP.Models;
 
 namespace ToDoAPP
@@ -184,6 +185,8 @@ namespace ToDoAPP
             }
         }
 
+        private PriorityItem _editingPriority = null;
+
         private void ShowTaskPopup_Click(object sender, RoutedEventArgs e)
         {
             _editingIndex = -1;
@@ -191,36 +194,119 @@ namespace ToDoAPP
             AddButton.Content = "Save Task";
             TaskInput.Clear();
             TaskDatePicker.SelectedDate = null;
-            PriorityComboBox.SelectedIndex = 1;
+            if (PriorityComboBox.Items.Count > 0) PriorityComboBox.SelectedIndex = 1;
             TaskPopup.Visibility = Visibility.Visible;
-            NewPriorityPanel.Visibility = Visibility.Collapsed;
+            PriorityEditorPanel.Visibility = Visibility.Collapsed;
             TaskInput.Focus();
         }
 
         private void CloseTaskPopup_Click(object sender, RoutedEventArgs e)
         {
             TaskPopup.Visibility = Visibility.Collapsed;
-            NewPriorityPanel.Visibility = Visibility.Collapsed;
+            PriorityEditorPanel.Visibility = Visibility.Collapsed;
         }
 
         private void AddPriority_Click(object sender, RoutedEventArgs e)
         {
-            NewPriorityPanel.Visibility = NewPriorityPanel.Visibility == Visibility.Collapsed 
-                ? Visibility.Visible : Visibility.Collapsed;
+            _editingPriority = null;
+            PriorityNameInput.Clear();
+            PriorityColorComboBox.SelectedIndex = 0;
+            PriorityEditorPanel.Visibility = Visibility.Visible;
         }
 
-        private void SaveNewPriority_Click(object sender, RoutedEventArgs e)
+        private void EditPriority_Click(object sender, RoutedEventArgs e)
         {
-            string name = NewPriorityInput.Text.Trim();
+            if (PriorityComboBox.SelectedItem is PriorityItem selected)
+            {
+                _editingPriority = selected;
+                PriorityNameInput.Text = selected.Name;
+
+                bool colorFound = false;
+                foreach (ComboBoxItem item in PriorityColorComboBox.Items)
+                {
+                    if (item.Content.ToString().Equals(selected.Color, StringComparison.OrdinalIgnoreCase))
+                    {
+                        PriorityColorComboBox.SelectedItem = item;
+                        colorFound = true;
+                        break;
+                    }
+                }
+                if (!colorFound && PriorityColorComboBox.Items.Count > 0)
+                    PriorityColorComboBox.SelectedIndex = 0;
+
+                PriorityEditorPanel.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void DeletePriority_Click(object sender, RoutedEventArgs e)
+        {
+            if (PriorityComboBox.SelectedItem is PriorityItem selected)
+            {
+                if (_priorities.Count > 1)
+                {
+                    _priorities.Remove(selected);
+                    UpdatePrioritiesList();
+                    PriorityEditorPanel.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    MessageBox.Show("Cannot delete the last priority.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+        }
+
+        private void CancelPriorityEdit_Click(object sender, RoutedEventArgs e)
+        {
+            PriorityEditorPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void SavePriority_Click(object sender, RoutedEventArgs e)
+        {
+            string name = PriorityNameInput.Text.Trim();
             if (!string.IsNullOrWhiteSpace(name))
             {
-                string randomColor = $"#{_rnd.Next(0x1000000):X6}";
-                var newPriority = new PriorityItem { Name = name, Color = randomColor };
-                _priorities.Add(newPriority);
+                string color = "Gray";
+                if (PriorityColorComboBox.SelectedItem is ComboBoxItem colorItem)
+                {
+                    color = colorItem.Content.ToString();
+                }
+
+                if (_editingPriority != null)
+                {
+                    string oldName = _editingPriority.Name;
+                    _editingPriority.Name = name;
+                    _editingPriority.Color = color;
+
+                    foreach (var item in TaskListView.Items.OfType<TaskItem>())
+                    {
+                        if (item.PriorityName == oldName)
+                        {
+                            item.PriorityName = name;
+                            item.PriorityColor = color;
+                        }
+                    }
+                    foreach (var item in CompletedTaskListView.Items.OfType<TaskItem>())
+                    {
+                        if (item.PriorityName == oldName)
+                        {
+                            item.PriorityName = name;
+                            item.PriorityColor = color;
+                        }
+                    }
+
+                    TaskListView.Items.Refresh();
+                    CompletedTaskListView.Items.Refresh();
+                }
+                else
+                {
+                    var newPriority = new PriorityItem { Name = name, Color = color };
+                    _priorities.Add(newPriority);
+                    _editingPriority = newPriority;
+                }
+
                 UpdatePrioritiesList();
-                PriorityComboBox.SelectedItem = newPriority;
-                NewPriorityInput.Clear();
-                NewPriorityPanel.Visibility = Visibility.Collapsed;
+                PriorityComboBox.SelectedItem = _editingPriority;
+                PriorityEditorPanel.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -290,7 +376,7 @@ namespace ToDoAPP
                     PopupTitle.Text = "Edit Task";
                     AddButton.Content = "Update Task";
                     TaskPopup.Visibility = Visibility.Visible;
-                    NewPriorityPanel.Visibility = Visibility.Collapsed;
+                    PriorityEditorPanel.Visibility = Visibility.Collapsed;
                     TaskInput.Focus();
                 }
             }
@@ -362,6 +448,84 @@ namespace ToDoAPP
                     TaskListView.Items.Add(task);
                 }
             }
+        }
+
+        private void ShowFilterPopup_Click(object sender, RoutedEventArgs e)
+        {
+            var filterPriorities = new List<PriorityItem> { new PriorityItem { Name = "All", Color = "Transparent" } };
+            filterPriorities.AddRange(_priorities);
+            FilterPriorityComboBox.ItemsSource = filterPriorities;
+
+            if (FilterPriorityComboBox.SelectedItem == null)
+            {
+                FilterPriorityComboBox.SelectedIndex = 0;
+            }
+
+            FilterPopup.Visibility = Visibility.Visible;
+        }
+
+        private void CloseFilterPopup_Click(object sender, RoutedEventArgs e)
+        {
+            FilterPopup.Visibility = Visibility.Collapsed;
+        }
+
+        private void ApplyFilter_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedPriority = FilterPriorityComboBox.SelectedItem as PriorityItem;
+            string priorityName = selectedPriority?.Name == "All" ? null : selectedPriority?.Name;
+            DateTime? filterDate = FilterDatePicker.SelectedDate;
+
+            Predicate<object> filter = obj =>
+            {
+                if (obj is TaskItem task)
+                {
+                    bool matchPriority = string.IsNullOrEmpty(priorityName) || task.PriorityName == priorityName;
+                    bool matchDate = !filterDate.HasValue || (task.DueDate.HasValue && task.DueDate.Value.Date == filterDate.Value.Date);
+                    return matchPriority && matchDate;
+                }
+                return false;
+            };
+
+            TaskListView.Items.Filter = filter;
+            CompletedTaskListView.Items.Filter = filter;
+
+            ApplySorting();
+
+            FilterPopup.Visibility = Visibility.Collapsed;
+        }
+
+        private void ApplySorting()
+        {
+            TaskListView.Items.SortDescriptions.Clear();
+            CompletedTaskListView.Items.SortDescriptions.Clear();
+
+            int sortByIndex = SortByComboBox.SelectedIndex;
+            if (sortByIndex > 0)
+            {
+                string propertyName = sortByIndex == 1 ? "DueDate" : "PriorityName";
+                var direction = SortDirectionComboBox.SelectedIndex == 0 
+                    ? ListSortDirection.Ascending 
+                    : ListSortDirection.Descending;
+
+                TaskListView.Items.SortDescriptions.Add(new SortDescription(propertyName, direction));
+                CompletedTaskListView.Items.SortDescriptions.Add(new SortDescription(propertyName, direction));
+            }
+        }
+
+        private void ClearFilter_Click(object sender, RoutedEventArgs e)
+        {
+            FilterPriorityComboBox.SelectedIndex = 0;
+            FilterDatePicker.SelectedDate = null;
+            SortByComboBox.SelectedIndex = 0;
+            SortDirectionComboBox.SelectedIndex = 0;
+
+            TaskListView.Items.Filter = null;
+            CompletedTaskListView.Items.Filter = null;
+
+            TaskListView.Items.SortDescriptions.Clear();
+            CompletedTaskListView.Items.SortDescriptions.Clear();
+
+            FilterPopup.Visibility = Visibility.Collapsed;
         }
     }
 }
