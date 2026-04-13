@@ -1,62 +1,54 @@
-﻿using System.Windows;
+﻿using System;
+using System.Collections.Generic;
+using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Input;
 using System.IO;
 using System.Text.Json;
 using System.Linq;
-using System.ComponentModel;
 using ToDoAPP.Models;
 
 namespace ToDoAPP
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
-        private int _editingIndex = -1;
         private bool _isDarkMode = false;
+        private const string SaveFilePath = "gamified_tasks.json";
+
+        // The Master Data List
+        private List<Campaign> _campaigns = new();
+        private List<PriorityItem> _priorities = new();
+
+        // State tracking
+        private int _nameEntryMode = 0; // 1 = Campaign, 2 = Mission
+        private Campaign _selectedCampaignForMission = null;
 
         public MainWindow()
         {
             InitializeComponent();
             ApplyTheme();
             InitializePriorities();
-            LoadTasks();
+            LoadData();
         }
 
-        private const string SaveFilePath = "tasks.json";
-
-        public class TodoDataLocal
+        public class GamifiedDataLocal
         {
-            public List<TaskItem> ActiveTasks { get; set; } = new();
-            public List<TaskItem> CompletedTasks { get; set; } = new();
+            public List<Campaign> Campaigns { get; set; } = new();
             public List<PriorityItem> CustomPriorities { get; set; } = new();
             public bool IsDarkMode { get; set; } = false;
-            public int LastTaskNumber { get; set; } = 0;
         }
-
-        private Random _rnd = new Random();
-        private List<PriorityItem> _priorities = new();
-        private int _lastTaskNumber = 0;
 
         private void InitializePriorities()
         {
             _priorities.Add(new PriorityItem { Name = "High", Color = "Red" });
             _priorities.Add(new PriorityItem { Name = "Medium", Color = "Goldenrod" });
             _priorities.Add(new PriorityItem { Name = "Low", Color = "Green" });
-            UpdatePrioritiesList();
-        }
-
-        private void UpdatePrioritiesList()
-        {
-            PriorityComboBox.ItemsSource = null;
             PriorityComboBox.ItemsSource = _priorities;
-            if (PriorityComboBox.Items.Count > 0)
-                PriorityComboBox.SelectedIndex = PriorityComboBox.Items.Count > 0 ? 1 : 0;
+            PriorityComboBox.SelectedIndex = 1;
         }
 
+        // --- THEME ---
         private void ApplyTheme()
         {
             if (_isDarkMode)
@@ -66,13 +58,6 @@ namespace ToDoAPP
                 Application.Current.Resources["PopupBackgroundBrush"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D2D30"));
                 Application.Current.Resources["TextBrush"] = Brushes.White;
                 Application.Current.Resources["ControlBackgroundBrush"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3E3E42"));
-
-                // Override global system colors to deeply re-theme complicated native controls (like DatePicker calendar and ComboBox dropdowns)
-                Application.Current.Resources[SystemColors.WindowBrushKey] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D2D30"));
-                Application.Current.Resources[SystemColors.WindowTextBrushKey] = Brushes.White;
-                Application.Current.Resources[SystemColors.ControlBrushKey] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3E3E42"));
-                Application.Current.Resources[SystemColors.ControlTextBrushKey] = Brushes.White;
-                Application.Current.Resources[SystemColors.ControlLightBrushKey] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D2D30"));
             }
             else
             {
@@ -81,101 +66,13 @@ namespace ToDoAPP
                 Application.Current.Resources["PopupBackgroundBrush"] = Brushes.White;
                 Application.Current.Resources["TextBrush"] = Brushes.Black;
                 Application.Current.Resources["ControlBackgroundBrush"] = Brushes.White;
-
-                Application.Current.Resources[SystemColors.WindowBrushKey] = SystemColors.WindowBrush;
-                Application.Current.Resources[SystemColors.WindowTextBrushKey] = SystemColors.WindowTextBrush;
-                Application.Current.Resources[SystemColors.ControlBrushKey] = SystemColors.ControlBrush;
-                Application.Current.Resources[SystemColors.ControlTextBrushKey] = SystemColors.ControlTextBrush;
-                Application.Current.Resources[SystemColors.ControlLightBrushKey] = SystemColors.ControlLightBrush;
             }
 
-            if (ThemeComboBox != null)
-            {
-                ThemeComboBox.SelectedIndex = _isDarkMode ? 1 : 0;
-            }
+            if (ThemeComboBox != null) ThemeComboBox.SelectedIndex = _isDarkMode ? 1 : 0;
         }
 
-        private void LoadTasks()
-        {
-            try
-            {
-                if (File.Exists(SaveFilePath))
-                {
-                    string json = File.ReadAllText(SaveFilePath);
-                    var data = JsonSerializer.Deserialize<TodoDataLocal>(json);
-
-                    if (data != null)
-                    {
-                        if (data.CustomPriorities != null)
-                        {
-                            foreach (var p in data.CustomPriorities)
-                                _priorities.Add(p);
-                            UpdatePrioritiesList();
-                        }
-
-                        foreach (var task in data.ActiveTasks)
-                            TaskListView.Items.Add(task);
-
-                        foreach (var task in data.CompletedTasks)
-                            CompletedTaskListView.Items.Add(task);
-
-                        _isDarkMode = data.IsDarkMode;
-                        _lastTaskNumber = data.LastTaskNumber;
-                        ApplyTheme();
-                    }
-                }
-            }
-            catch
-            {
-                // Ignore load errors, maybe fallback on old json later if required
-            }
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            base.OnClosed(e);
-            SaveTasks();
-        }
-
-        private void SaveTasks()
-        {
-            try
-            {
-                var data = new TodoDataLocal();
-
-                // Exclude defaults from saved custom priorities
-                var customPrios = _priorities.Skip(3).ToList();
-                data.CustomPriorities.AddRange(customPrios);
-
-                foreach (TaskItem item in TaskListView.Items)
-                    data.ActiveTasks.Add(item);
-
-                foreach (TaskItem item in CompletedTaskListView.Items)
-                    data.CompletedTasks.Add(item);
-
-                data.IsDarkMode = _isDarkMode;
-                data.LastTaskNumber = _lastTaskNumber;
-
-                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(SaveFilePath, json);
-            }
-            catch
-            {
-                // Ignore save errors
-            }
-        }
-
-        private void ShowSettingsPopup_Click(object sender, RoutedEventArgs e)
-        {
-            ThemeComboBox.SelectedIndex = _isDarkMode ? 1 : 0;
-            SettingsPopup.Visibility = Visibility.Visible;
-        }
-
-        private void CloseSettingsPopup_Click(object sender, RoutedEventArgs e)
-        {
-            SettingsPopup.Visibility = Visibility.Collapsed;
-        }
-
+        private void ShowSettingsPopup_Click(object sender, RoutedEventArgs e) => SettingsPopup.Visibility = Visibility.Visible;
+        private void CloseSettingsPopup_Click(object sender, RoutedEventArgs e) => SettingsPopup.Visibility = Visibility.Collapsed;
         private void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ThemeComboBox != null && ThemeComboBox.SelectedIndex >= 0)
@@ -185,128 +82,189 @@ namespace ToDoAPP
             }
         }
 
-        private PriorityItem _editingPriority = null;
-
-        private void ShowTaskPopup_Click(object sender, RoutedEventArgs e)
+        // --- DATA SAVING & LOADING ---
+        private void LoadData()
         {
-            _editingIndex = -1;
-            PopupTitle.Text = "Create Task";
-            AddButton.Content = "Save Task";
-            TaskInput.Clear();
-            TaskDatePicker.SelectedDate = null;
-            if (PriorityComboBox.Items.Count > 0) PriorityComboBox.SelectedIndex = 1;
-            TaskPopup.Visibility = Visibility.Visible;
-            PriorityEditorPanel.Visibility = Visibility.Collapsed;
-            TaskInput.Focus();
-        }
-
-        private void CloseTaskPopup_Click(object sender, RoutedEventArgs e)
-        {
-            TaskPopup.Visibility = Visibility.Collapsed;
-            PriorityEditorPanel.Visibility = Visibility.Collapsed;
-        }
-
-        private void AddPriority_Click(object sender, RoutedEventArgs e)
-        {
-            _editingPriority = null;
-            PriorityNameInput.Clear();
-            PriorityColorComboBox.SelectedIndex = 0;
-            PriorityEditorPanel.Visibility = Visibility.Visible;
-        }
-
-        private void EditPriority_Click(object sender, RoutedEventArgs e)
-        {
-            if (PriorityComboBox.SelectedItem is PriorityItem selected)
+            try
             {
-                _editingPriority = selected;
-                PriorityNameInput.Text = selected.Name;
-
-                bool colorFound = false;
-                foreach (ComboBoxItem item in PriorityColorComboBox.Items)
+                if (File.Exists(SaveFilePath))
                 {
-                    if (item.Content.ToString().Equals(selected.Color, StringComparison.OrdinalIgnoreCase))
+                    string json = File.ReadAllText(SaveFilePath);
+                    var data = JsonSerializer.Deserialize<GamifiedDataLocal>(json);
+                    if (data != null)
                     {
-                        PriorityColorComboBox.SelectedItem = item;
-                        colorFound = true;
-                        break;
+                        _campaigns = data.Campaigns ?? new List<Campaign>();
+                        _isDarkMode = data.IsDarkMode;
+                        ApplyTheme();
                     }
                 }
-                if (!colorFound && PriorityColorComboBox.Items.Count > 0)
-                    PriorityColorComboBox.SelectedIndex = 0;
-
-                PriorityEditorPanel.Visibility = Visibility.Visible;
             }
+            catch { /* Ignore load errors */ }
+
+            RefreshJournalTree();
+            RefreshMissionDropdown();
         }
 
-        private void DeletePriority_Click(object sender, RoutedEventArgs e)
+        protected override void OnClosed(EventArgs e)
         {
-            if (PriorityComboBox.SelectedItem is PriorityItem selected)
+            base.OnClosed(e);
+            SaveData();
+        }
+
+        private void SaveData()
+        {
+            try
             {
-                if (_priorities.Count > 1)
+                var data = new GamifiedDataLocal
                 {
-                    _priorities.Remove(selected);
-                    UpdatePrioritiesList();
-                    PriorityEditorPanel.Visibility = Visibility.Collapsed;
-                }
-                else
+                    Campaigns = _campaigns,
+                    IsDarkMode = _isDarkMode
+                };
+                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(SaveFilePath, json);
+            }
+            catch { /* Ignore save errors */ }
+        }
+
+        // --- UI UPDATERS ---
+        private void RefreshJournalTree()
+        {
+            JournalTreeView.ItemsSource = null;
+            JournalTreeView.ItemsSource = _campaigns;
+        }
+
+        private void RefreshMissionDropdown()
+        {
+            // Flatten all missions into one list for the Kanban board dropdown
+            var allMissions = new List<Mission>();
+            foreach (var c in _campaigns) allMissions.AddRange(c.Missions);
+
+            BoardFocusComboBox.ItemsSource = null;
+            BoardFocusComboBox.ItemsSource = allMissions;
+            if (allMissions.Count > 0) BoardFocusComboBox.SelectedIndex = 0;
+        }
+
+        private void RefreshKanbanBoard()
+        {
+            BoardToDoList.Items.Clear();
+            BoardDoingList.Items.Clear();
+            BoardDoneList.Items.Clear();
+
+            if (BoardFocusComboBox.SelectedItem is Mission currentMission)
+            {
+                foreach (var obj in currentMission.Objectives)
                 {
-                    MessageBox.Show("Cannot delete the last priority.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    if (obj.Status == 0) BoardToDoList.Items.Add(obj);
+                    else if (obj.Status == 1) BoardDoingList.Items.Add(obj);
+                    else if (obj.Status == 2) BoardDoneList.Items.Add(obj);
                 }
             }
         }
 
-        private void CancelPriorityEdit_Click(object sender, RoutedEventArgs e)
+        private void BoardFocusComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            PriorityEditorPanel.Visibility = Visibility.Collapsed;
+            RefreshKanbanBoard();
         }
 
-        private void SavePriority_Click(object sender, RoutedEventArgs e)
+        // --- ADDING CAMPAIGNS & MISSIONS ---
+        private void AddCampaign_Click(object sender, RoutedEventArgs e)
         {
-            string name = PriorityNameInput.Text.Trim();
+            _nameEntryMode = 1;
+            NamePopupTitle.Text = "Enter Campaign Name:";
+            NameEntryInput.Clear();
+            NameEntryPopup.Visibility = Visibility.Visible;
+        }
+
+        private void AddMission_Click(object sender, RoutedEventArgs e)
+        {
+            if (JournalTreeView.SelectedItem is Campaign selectedCamp)
+            {
+                _selectedCampaignForMission = selectedCamp;
+                _nameEntryMode = 2;
+                NamePopupTitle.Text = $"New Mission for '{selectedCamp.Title}':";
+                NameEntryInput.Clear();
+                NameEntryPopup.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                MessageBox.Show("Please select a Campaign in the Tree View first.", "Planning Phase");
+            }
+        }
+
+        private void CloseNamePopup_Click(object sender, RoutedEventArgs e) => NameEntryPopup.Visibility = Visibility.Collapsed;
+
+        private void SaveName_Click(object sender, RoutedEventArgs e)
+        {
+            string name = NameEntryInput.Text.Trim();
             if (!string.IsNullOrWhiteSpace(name))
             {
-                string color = "Gray";
-                if (PriorityColorComboBox.SelectedItem is ComboBoxItem colorItem)
+                if (_nameEntryMode == 1) // Campaign
                 {
-                    color = colorItem.Content.ToString();
+                    _campaigns.Add(new Campaign { Title = name });
                 }
-
-                if (_editingPriority != null)
+                else if (_nameEntryMode == 2 && _selectedCampaignForMission != null) // Mission
                 {
-                    string oldName = _editingPriority.Name;
-                    _editingPriority.Name = name;
-                    _editingPriority.Color = color;
+                    _selectedCampaignForMission.Missions.Add(new Mission { Title = name });
+                    RefreshMissionDropdown();
+                }
+                RefreshJournalTree();
+                NameEntryPopup.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                string entityType = _nameEntryMode == 1 ? "Campaign" : "Mission";
+                MessageBox.Show($"{entityType} name cannot be empty.", "Input Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
 
-                    foreach (var item in TaskListView.Items.OfType<TaskItem>())
-                    {
-                        if (item.PriorityName == oldName)
-                        {
-                            item.PriorityName = name;
-                            item.PriorityColor = color;
-                        }
-                    }
-                    foreach (var item in CompletedTaskListView.Items.OfType<TaskItem>())
-                    {
-                        if (item.PriorityName == oldName)
-                        {
-                            item.PriorityName = name;
-                            item.PriorityColor = color;
-                        }
-                    }
+        private void NameEntryInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                SaveName_Click(sender, new RoutedEventArgs());
+            }
+        }
 
-                    TaskListView.Items.Refresh();
-                    CompletedTaskListView.Items.Refresh();
+        // --- KANBAN BOARD INTERACTIONS ---
+        private void ShowTaskPopup_Click(object sender, RoutedEventArgs e)
+        {
+            if (BoardFocusComboBox.SelectedItem is Mission)
+            {
+                TaskInput.Clear();
+                TaskDatePicker.SelectedDate = null;
+                TaskPopup.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                MessageBox.Show("Please create and select a Mission from the dropdown before adding Objectives.", "Execution Phase");
+            }
+        }
+
+        private void CloseTaskPopup_Click(object sender, RoutedEventArgs e) => TaskPopup.Visibility = Visibility.Collapsed;
+
+        private void AddObjective_Click(object sender, RoutedEventArgs e)
+        {
+            if (BoardFocusComboBox.SelectedItem is Mission currentMission && PriorityComboBox.SelectedItem is PriorityItem selectedPriority)
+            {
+                if (!string.IsNullOrWhiteSpace(TaskInput.Text))
+                {
+                    if (currentMission.Objectives == null) currentMission.Objectives = new List<Objective>();
+                    currentMission.Objectives.Add(new Objective
+                    {
+                        Description = TaskInput.Text,
+                        PriorityName = selectedPriority.Name,
+                        PriorityColor = selectedPriority.Color,
+                        DueDate = TaskDatePicker.SelectedDate,
+                        Status = 0 // To Do
+                    });
+
+                    RefreshKanbanBoard();
+                    TaskPopup.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
-                    var newPriority = new PriorityItem { Name = name, Color = color };
-                    _priorities.Add(newPriority);
-                    _editingPriority = newPriority;
+                    MessageBox.Show("Objective description cannot be empty.", "Input Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
-
-                UpdatePrioritiesList();
-                PriorityComboBox.SelectedItem = _editingPriority;
-                PriorityEditorPanel.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -314,218 +272,58 @@ namespace ToDoAPP
         {
             if (e.Key == Key.Enter)
             {
-                AddTask_Click(sender, e);
+                AddObjective_Click(sender, new RoutedEventArgs());
             }
         }
 
-        private void AddTask_Click(object sender, RoutedEventArgs e)
+        // Move Card: To Do -> Doing
+        private void StartQuest_Click(object sender, RoutedEventArgs e)
         {
-            string newTaskDescription = TaskInput.Text;
-            var selectedPriority = PriorityComboBox.SelectedItem as PriorityItem;
-
-            if (!string.IsNullOrWhiteSpace(newTaskDescription) && selectedPriority != null)
+            if (sender is Button btn && btn.Tag is Objective obj)
             {
-                var taskItem = new TaskItem
-                {
-                    Description = newTaskDescription,
-                    PriorityName = selectedPriority.Name,
-                    PriorityColor = selectedPriority.Color,
-                    DueDate = TaskDatePicker.SelectedDate
-                };
-
-                if (_editingIndex >= 0)
-                {
-                    var existingTask = TaskListView.Items[_editingIndex] as TaskItem;
-                    if (existingTask != null) taskItem.TaskNumber = existingTask.TaskNumber;
-
-                    TaskListView.Items[_editingIndex] = taskItem;
-                    _editingIndex = -1;
-                }
-                else
-                {
-                    _lastTaskNumber++;
-                    taskItem.TaskNumber = _lastTaskNumber;
-                    TaskListView.Items.Add(taskItem);
-                }
-
-                TaskInput.Clear();
-                TaskPopup.Visibility = Visibility.Collapsed;
+                obj.Status = 1;
+                RefreshKanbanBoard();
             }
         }
 
-        private void EditTask_Click(object sender, RoutedEventArgs e)
+        // Move Card: Doing -> Done
+        private void CompleteQuest_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Tag is TaskItem task)
+            if (sender is Button btn && btn.Tag is Objective obj)
             {
-                _editingIndex = TaskListView.Items.IndexOf(task);
-                if (_editingIndex >= 0)
-                {
-                    TaskInput.Text = task.Description;
-                    TaskDatePicker.SelectedDate = task.DueDate;
-
-                    var matchingPriority = _priorities.FirstOrDefault(p => p.Name == task.PriorityName);
-                    if (matchingPriority != null)
-                    {
-                        PriorityComboBox.SelectedItem = matchingPriority;
-                    }
-                    else if (_priorities.Count > 0)
-                    {
-                        PriorityComboBox.SelectedIndex = 1;
-                    }
-
-                    PopupTitle.Text = "Edit Task";
-                    AddButton.Content = "Update Task";
-                    TaskPopup.Visibility = Visibility.Visible;
-                    PriorityEditorPanel.Visibility = Visibility.Collapsed;
-                    TaskInput.Focus();
-                }
+                obj.Status = 2;
+                RefreshKanbanBoard();
             }
         }
 
-        private void DeleteTask_Click(object sender, RoutedEventArgs e)
+        // Undo Card: Doing -> To Do
+        private void UndoActiveQuest_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button button && button.Tag is TaskItem task)
+            if (sender is Button btn && btn.Tag is Objective obj)
             {
-                int index = TaskListView.Items.IndexOf(task);
-                if (index >= 0)
-                {
-                    TaskListView.Items.RemoveAt(index);
-
-                    if (_editingIndex == index)
-                    {
-                        _editingIndex = -1;
-                        TaskInput.Clear();
-                        AddButton.Content = "Add Task";
-                    }
-                    else if (_editingIndex > index)
-                    {
-                        _editingIndex--;
-                    }
-                }
-                else
-                {
-                    int completedIndex = CompletedTaskListView.Items.IndexOf(task);
-                    if (completedIndex >= 0)
-                    {
-                        CompletedTaskListView.Items.RemoveAt(completedIndex);
-                    }
-                }
+                obj.Status = 0;
+                RefreshKanbanBoard();
             }
         }
 
-        private void TaskCompleted_Checked(object sender, RoutedEventArgs e)
+        // Undo Card: Done -> Doing
+        private void UndoDoneQuest_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is CheckBox checkBox && checkBox.Tag is TaskItem task)
+            if (sender is Button btn && btn.Tag is Objective obj)
             {
-                int index = TaskListView.Items.IndexOf(task);
-                if (index >= 0)
-                {
-                    TaskListView.Items.RemoveAt(index);
-                    CompletedTaskListView.Items.Add(task);
-
-                    if (_editingIndex == index)
-                    {
-                        _editingIndex = -1;
-                        TaskInput.Clear();
-                        AddButton.Content = "Add Task";
-                    }
-                    else if (_editingIndex > index)
-                    {
-                        _editingIndex--;
-                    }
-                }
+                obj.Status = 1;
+                RefreshKanbanBoard();
             }
         }
 
-        private void TaskCompleted_Unchecked(object sender, RoutedEventArgs e)
+        // Delete Card from Done
+        private void DeleteObjective_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is CheckBox checkBox && checkBox.Tag is TaskItem task)
+            if (sender is Button btn && btn.Tag is Objective obj && BoardFocusComboBox.SelectedItem is Mission currentMission)
             {
-                int index = CompletedTaskListView.Items.IndexOf(task);
-                if (index >= 0)
-                {
-                    CompletedTaskListView.Items.RemoveAt(index);
-                    TaskListView.Items.Add(task);
-                }
+                currentMission.Objectives.Remove(obj);
+                RefreshKanbanBoard();
             }
-        }
-
-        private void ShowFilterPopup_Click(object sender, RoutedEventArgs e)
-        {
-            var filterPriorities = new List<PriorityItem> { new PriorityItem { Name = "All", Color = "Transparent" } };
-            filterPriorities.AddRange(_priorities);
-            FilterPriorityComboBox.ItemsSource = filterPriorities;
-
-            if (FilterPriorityComboBox.SelectedItem == null)
-            {
-                FilterPriorityComboBox.SelectedIndex = 0;
-            }
-
-            FilterPopup.Visibility = Visibility.Visible;
-        }
-
-        private void CloseFilterPopup_Click(object sender, RoutedEventArgs e)
-        {
-            FilterPopup.Visibility = Visibility.Collapsed;
-        }
-
-        private void ApplyFilter_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedPriority = FilterPriorityComboBox.SelectedItem as PriorityItem;
-            string priorityName = selectedPriority?.Name == "All" ? null : selectedPriority?.Name;
-            DateTime? filterDate = FilterDatePicker.SelectedDate;
-
-            Predicate<object> filter = obj =>
-            {
-                if (obj is TaskItem task)
-                {
-                    bool matchPriority = string.IsNullOrEmpty(priorityName) || task.PriorityName == priorityName;
-                    bool matchDate = !filterDate.HasValue || (task.DueDate.HasValue && task.DueDate.Value.Date == filterDate.Value.Date);
-                    return matchPriority && matchDate;
-                }
-                return false;
-            };
-
-            TaskListView.Items.Filter = filter;
-            CompletedTaskListView.Items.Filter = filter;
-
-            ApplySorting();
-
-            FilterPopup.Visibility = Visibility.Collapsed;
-        }
-
-        private void ApplySorting()
-        {
-            TaskListView.Items.SortDescriptions.Clear();
-            CompletedTaskListView.Items.SortDescriptions.Clear();
-
-            int sortByIndex = SortByComboBox.SelectedIndex;
-            if (sortByIndex > 0)
-            {
-                string propertyName = sortByIndex == 1 ? "DueDate" : "PriorityName";
-                var direction = SortDirectionComboBox.SelectedIndex == 0 
-                    ? ListSortDirection.Ascending 
-                    : ListSortDirection.Descending;
-
-                TaskListView.Items.SortDescriptions.Add(new SortDescription(propertyName, direction));
-                CompletedTaskListView.Items.SortDescriptions.Add(new SortDescription(propertyName, direction));
-            }
-        }
-
-        private void ClearFilter_Click(object sender, RoutedEventArgs e)
-        {
-            FilterPriorityComboBox.SelectedIndex = 0;
-            FilterDatePicker.SelectedDate = null;
-            SortByComboBox.SelectedIndex = 0;
-            SortDirectionComboBox.SelectedIndex = 0;
-
-            TaskListView.Items.Filter = null;
-            CompletedTaskListView.Items.Filter = null;
-
-            TaskListView.Items.SortDescriptions.Clear();
-            CompletedTaskListView.Items.SortDescriptions.Clear();
-
-            FilterPopup.Visibility = Visibility.Collapsed;
         }
     }
 }
