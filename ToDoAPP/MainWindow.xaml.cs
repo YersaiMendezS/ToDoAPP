@@ -8,16 +8,21 @@ using System.IO;
 using System.Text.Json;
 using System.Linq;
 using ToDoAPP.Models;
+using ToDoAPP.Application.Interfaces;
+using ToDoAPP.Application.Services;
+using ToDoAPP.Infrastructure.Data;
+using ToDoAPP.Infrastructure.Theme;
 
 namespace ToDoAPP
 {
     public partial class MainWindow : Window
     {
         private bool _isDarkMode = false;
-        private const string SaveFilePath = "gamified_tasks.json";
 
-        // The Master Data List
-        private List<Campaign> _campaigns = new();
+        private readonly IDataStore _dataStore;
+        private readonly IThemeManager _themeManager;
+        private QuestManager _questManager;
+
         private List<PriorityItem> _priorities = new();
 
         // State tracking
@@ -27,16 +32,11 @@ namespace ToDoAPP
         public MainWindow()
         {
             InitializeComponent();
+            _dataStore = new FileJsonDataStore();
+            _themeManager = new WpfThemeManager();
             ApplyTheme();
             InitializePriorities();
             LoadData();
-        }
-
-        public class GamifiedDataLocal
-        {
-            public List<Campaign> Campaigns { get; set; } = new();
-            public List<PriorityItem> CustomPriorities { get; set; } = new();
-            public bool IsDarkMode { get; set; } = false;
         }
 
         private void InitializePriorities()
@@ -51,24 +51,8 @@ namespace ToDoAPP
         // --- THEME ---
         private void ApplyTheme()
         {
-            if (_isDarkMode)
-            {
-                this.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
-                this.Foreground = Brushes.White;
-                Application.Current.Resources["PopupBackgroundBrush"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2D2D30"));
-                Application.Current.Resources["TextBrush"] = Brushes.White;
-                Application.Current.Resources["ControlBackgroundBrush"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3E3E42"));
-            }
-            else
-            {
-                this.Background = Brushes.White;
-                this.Foreground = Brushes.Black;
-                Application.Current.Resources["PopupBackgroundBrush"] = Brushes.White;
-                Application.Current.Resources["TextBrush"] = Brushes.Black;
-                Application.Current.Resources["ControlBackgroundBrush"] = Brushes.White;
-            }
-
-            if (ThemeComboBox != null) ThemeComboBox.SelectedIndex = _isDarkMode ? 1 : 0;
+            if (_themeManager == null) return;
+            _themeManager.ApplyTheme(this, ThemeComboBox, _isDarkMode);
         }
 
         private void ShowSettingsPopup_Click(object sender, RoutedEventArgs e) => SettingsPopup.Visibility = Visibility.Visible;
@@ -85,21 +69,10 @@ namespace ToDoAPP
         // --- DATA SAVING & LOADING ---
         private void LoadData()
         {
-            try
-            {
-                if (File.Exists(SaveFilePath))
-                {
-                    string json = File.ReadAllText(SaveFilePath);
-                    var data = JsonSerializer.Deserialize<GamifiedDataLocal>(json);
-                    if (data != null)
-                    {
-                        _campaigns = data.Campaigns ?? new List<Campaign>();
-                        _isDarkMode = data.IsDarkMode;
-                        ApplyTheme();
-                    }
-                }
-            }
-            catch { /* Ignore load errors */ }
+            var data = _dataStore.LoadData();
+            _questManager = new QuestManager(data.Campaigns);
+            _isDarkMode = data.IsDarkMode;
+            ApplyTheme();
 
             RefreshJournalTree();
             RefreshMissionDropdown();
@@ -113,31 +86,19 @@ namespace ToDoAPP
 
         private void SaveData()
         {
-            try
-            {
-                var data = new GamifiedDataLocal
-                {
-                    Campaigns = _campaigns,
-                    IsDarkMode = _isDarkMode
-                };
-                string json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(SaveFilePath, json);
-            }
-            catch { /* Ignore save errors */ }
+            _dataStore.SaveData(_questManager.Campaigns, _isDarkMode);
         }
 
         // --- UI UPDATERS ---
         private void RefreshJournalTree()
         {
             JournalTreeView.ItemsSource = null;
-            JournalTreeView.ItemsSource = _campaigns;
+            JournalTreeView.ItemsSource = _questManager.Campaigns;
         }
 
         private void RefreshMissionDropdown()
         {
-            // Flatten all missions into one list for the Kanban board dropdown
-            var allMissions = new List<Mission>();
-            foreach (var c in _campaigns) allMissions.AddRange(c.Missions);
+            var allMissions = _questManager.GetAllMissions();
 
             BoardFocusComboBox.ItemsSource = null;
             BoardFocusComboBox.ItemsSource = allMissions;
@@ -200,11 +161,11 @@ namespace ToDoAPP
             {
                 if (_nameEntryMode == 1) // Campaign
                 {
-                    _campaigns.Add(new Campaign { Title = name });
+                    _questManager.AddCampaign(name);
                 }
                 else if (_nameEntryMode == 2 && _selectedCampaignForMission != null) // Mission
                 {
-                    _selectedCampaignForMission.Missions.Add(new Mission { Title = name });
+                    _questManager.AddMission(_selectedCampaignForMission, name);
                     RefreshMissionDropdown();
                 }
                 RefreshJournalTree();
@@ -248,15 +209,7 @@ namespace ToDoAPP
             {
                 if (!string.IsNullOrWhiteSpace(TaskInput.Text))
                 {
-                    if (currentMission.Objectives == null) currentMission.Objectives = new List<Objective>();
-                    currentMission.Objectives.Add(new Objective
-                    {
-                        Description = TaskInput.Text,
-                        PriorityName = selectedPriority.Name,
-                        PriorityColor = selectedPriority.Color,
-                        DueDate = TaskDatePicker.SelectedDate,
-                        Status = 0 // To Do
-                    });
+                    _questManager.AddObjective(currentMission, TaskInput.Text, selectedPriority, TaskDatePicker.SelectedDate);
 
                     RefreshKanbanBoard();
                     TaskPopup.Visibility = Visibility.Collapsed;
@@ -281,7 +234,7 @@ namespace ToDoAPP
         {
             if (sender is Button btn && btn.Tag is Objective obj)
             {
-                obj.Status = 1;
+                _questManager.UpdateObjectiveStatus(obj, 1);
                 RefreshKanbanBoard();
             }
         }
@@ -291,7 +244,7 @@ namespace ToDoAPP
         {
             if (sender is Button btn && btn.Tag is Objective obj)
             {
-                obj.Status = 2;
+                _questManager.UpdateObjectiveStatus(obj, 2);
                 RefreshKanbanBoard();
             }
         }
@@ -301,7 +254,7 @@ namespace ToDoAPP
         {
             if (sender is Button btn && btn.Tag is Objective obj)
             {
-                obj.Status = 0;
+                _questManager.UpdateObjectiveStatus(obj, 0);
                 RefreshKanbanBoard();
             }
         }
@@ -311,7 +264,7 @@ namespace ToDoAPP
         {
             if (sender is Button btn && btn.Tag is Objective obj)
             {
-                obj.Status = 1;
+                _questManager.UpdateObjectiveStatus(obj, 1);
                 RefreshKanbanBoard();
             }
         }
@@ -321,7 +274,7 @@ namespace ToDoAPP
         {
             if (sender is Button btn && btn.Tag is Objective obj && BoardFocusComboBox.SelectedItem is Mission currentMission)
             {
-                currentMission.Objectives.Remove(obj);
+                _questManager.DeleteObjective(currentMission, obj);
                 RefreshKanbanBoard();
             }
         }
